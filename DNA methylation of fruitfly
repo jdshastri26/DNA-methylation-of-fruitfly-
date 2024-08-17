@@ -1,0 +1,156 @@
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+# Install necessary Bioconductor packages
+BiocManager::install(c("minfi", "bsseq", "GenomicRanges", "rtracklayer"))
+
+# Load the libraries
+library(minfi)
+library(bsseq)
+library(GenomicRanges)
+library(rtracklayer)
+
+
+# Load bisulfite sequencing data (e.g., in BED format)
+bed_file <- "path/to/your/methylation_data.bed"
+
+# Read the BED file (Assume columns: chr, start, end, methylation_level, coverage)
+methylation_data <- read.table(bed_file, header = TRUE)
+
+# Convert to a GRanges object
+gr <- GRanges(seqnames = methylation_data$V1, 
+              ranges = IRanges(start = methylation_data$V2, end = methylation_data$V3), 
+              strand = "*",
+              M = methylation_data$V4 * methylation_data$V5,  # Methylated reads
+              Cov = methylation_data$V5)                      # Total reads
+
+# Create BSseq object
+bsseq_data <- BSseq(chr = seqnames(gr), pos = start(gr), M = gr$M, Cov = gr$Cov, sampleNames = "FruitFlySample")
+
+# Smooth the methylation data
+bsseq_smoothed <- BSmooth(bsseq_data, verbose = TRUE)
+
+
+# Load the IDAT files
+targets <- read.metharray.sheet("path/to/your/target_file")
+rgSet <- read.metharray.exp(targets = targets)
+
+# Preprocess the data using SWAN normalization
+mSet <- preprocessSWAN(rgSet)
+
+# Calculate beta values (methylation levels)
+betaValues <- getBeta(mSet)
+
+# Quality control report
+qcReport(mSet)
+
+# Visualize the distribution of beta values
+densityPlot(betaValues, main = "Distribution of Beta Values")
+
+
+# Load the IDAT files
+targets <- read.metharray.sheet("path/to/your/target_file")
+rgSet <- read.metharray.exp(targets = targets)
+
+# Preprocess the data using SWAN normalization
+mSet <- preprocessSWAN(rgSet)
+
+# Calculate beta values (methylation levels)
+betaValues <- getBeta(mSet)
+
+# Quality control report
+qcReport(mSet)
+
+# Visualize the distribution of beta values
+densityPlot(betaValues, main = "Distribution of Beta Values")
+
+
+# Define conditions for comparison (e.g., control vs. treatment)
+pData(bsseq_smoothed) <- data.frame(condition = c("control", "treatment"))
+
+# Perform differential methylation analysis
+dml <- DMLtest(bsseq_smoothed, group1 = "control", group2 = "treatment")
+
+# Extract significant DMRs (FDR-adjusted p-value < 0.05)
+dmrs <- subset(dml$results, fwer < 0.05)
+
+# Visualize significant DMRs
+plotDMRs(bsseq_smoothed, dmrs = dmrs)
+
+
+# Define the experimental design
+design <- model.matrix(~ condition, data = pData(mSet))
+
+# Fit the linear model
+fit <- lmFit(betaValues, design)
+
+# Apply empirical Bayes smoothing
+fit <- eBayes(fit)
+
+# Extract DMPs (adjusted p-value < 0.05)
+topTable <- topTable(fit, coef = "condition", number = Inf, adjust.method = "BH", p.value = 0.05)
+
+# Visualize top DMPs
+plotDMP(betaValues, topTable)
+
+
+# Define the experimental design
+design <- model.matrix(~ condition, data = pData(mSet))
+
+# Fit the linear model
+fit <- lmFit(betaValues, design)
+
+# Apply empirical Bayes smoothing
+fit <- eBayes(fit)
+
+# Extract DMPs (adjusted p-value < 0.05)
+topTable <- topTable(fit, coef = "condition", number = Inf, adjust.method = "BH", p.value = 0.05)
+
+# Visualize top DMPs
+plotDMP(betaValues, topTable)
+
+
+# Load Drosophila genome annotation (GTF or BED format)
+annotation <- rtracklayer::import("path/to/drosophila_annotation.gtf")
+
+# Annotate DMRs or DMPs
+annotatedRegions <- annotateRegions(dmrs, annotation)
+
+# View annotated regions
+head(annotatedRegions)
+
+
+# Load Drosophila genome annotation (GTF or BED format)
+annotation <- rtracklayer::import("path/to/drosophila_annotation.gtf")
+
+# Annotate DMRs or DMPs
+annotatedRegions <- annotateRegions(dmrs, annotation)
+
+# View annotated regions
+head(annotatedRegions)
+
+
+# Heatmap for top differentially methylated regions/positions
+library(pheatmap)
+topProbes <- rownames(topTable)[1:50]  # Top 50 DMPs for visualization
+pheatmap(betaValues[topProbes, ], cluster_rows = TRUE, cluster_cols = TRUE, show_rownames = FALSE)
+
+# Boxplot for a specific methylation site (example)
+probe <- "cg00000029"  # Replace with actual probe ID or region of interest
+boxplot(betaValues[probe, ] ~ pData(mSet)$condition, main = paste("Methylation levels of", probe))
+
+# Heatmap for top differentially methylated regions/positions
+library(pheatmap)
+topProbes <- rownames(topTable)[1:50]  # Top 50 DMPs for visualization
+pheatmap(betaValues[topProbes, ], cluster_rows = TRUE, cluster_cols = TRUE, show_rownames = FALSE)
+
+# Boxplot for a specific methylation site (example)
+probe <- "cg00000029"  # Replace with actual probe ID or region of interest
+boxplot(betaValues[probe, ] ~ pData(mSet)$condition, main = paste("Methylation levels of", probe))
+
+
+Summary of the Workflow
+Data Loading and Preprocessing: Depending on the type of data (BS-Seq or array), the data is loaded, processed, and converted to suitable formats.
+Differential Methylation Analysis: Statistical models are used to identify differentially methylated regions or positions between different experimental conditions.
+Annotation: Annotate these methylated regions/positions with relevant genomic features using available annotations for Drosophila melanogaster.
+Visualization: Visualize the methylation data and differentially methylated regions/positions using heatmaps, boxplots, or other relevant plots.
